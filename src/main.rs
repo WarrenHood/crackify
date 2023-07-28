@@ -1,47 +1,8 @@
-use std::{io::{BufReader, BufRead}, thread};
+use rayon::prelude::*;
+use std::io::{BufRead, BufReader};
 
-use pdf;
 use clap::Parser;
-
-#[derive(Clone, Debug)]
-struct Password {
-    slots: Vec<u8>
-}
-
-impl Password {
-    fn new(length: usize) -> Self {
-        let mut result = Password {slots: vec![]};
-        for _ in 0..length {
-            result.slots.push(0);
-        }
-        result
-    }
-
-    fn next(&self) -> Option<Self> {
-        let mut result = self.clone();
-        for i in 0..result.slots.len() {
-            result.slots[i] += 1;
-            if result.slots[i] >= 10 {
-                result.slots[i] = 0;
-                if i == result.slots.len() - 1{
-                    return None;
-                }
-            }
-            else {
-                break;
-            }
-        }
-        Some(result)
-    }
-
-    fn to_string(&self) -> String {
-        let mut result = String::new();
-        for digit in &self.slots {
-            result += format!("{}", digit).as_str();
-        }
-        result
-    }
-}
+use pdf;
 
 /// Simple PDF cracker
 #[derive(Parser, Debug)]
@@ -66,28 +27,28 @@ struct Args {
     /// Maximum length of numeric password
     #[arg(short, long, default_value_t = 8)]
     largest_numeric_length: usize,
-
-    /// Number of threads to use
-    #[arg(short, long, default_value_t = 16)]
-    threads: usize,
 }
 
-
-fn try_password(pdf_path: &str, password: &str) -> bool {
-    let result = pdf::file::FileOptions::cached().password(password.as_bytes()).open(pdf_path);
-    result.is_ok()
+fn try_password(pdf_contents: &[u8], password: &str) -> bool {
+    pdf::file::File::from_data_password(pdf_contents, password.as_bytes()).is_ok()
 }
 
 fn main() {
     let args = Args::parse();
+
+    let pdf_bytes = std::fs::read(&args.pdf).expect("Unable to read PDF");
+
     let mut password_list: Vec<String> = Vec::new();
     if let Some(wordlist) = args.wordlist {
-        println!("Attempting to crack {} using wordlist {}", &args.pdf, &wordlist);
+        println!(
+            "Attempting to crack {} using wordlist {}",
+            &args.pdf, &wordlist
+        );
         let passwords_file = std::fs::File::open(&wordlist).expect("Unable to open wordlist file");
         let mut reader = BufReader::new(passwords_file);
 
         let mut password = String::new();
-        
+
         loop {
             let len = reader.read_line(&mut password);
             if len.is_err() {
@@ -99,57 +60,29 @@ fn main() {
             password_list.push(String::from(&password));
             password.clear();
         }
-    }
-    else if args.is_numeric {
+    } else if args.is_numeric {
         println!("Generating numeric password list...");
-        for length in args.smallest_numeric_length..=args.largest_numeric_length {
-            println!("Generating length {} numeric passwords...", length);
-            let mut password: Password = Password::new(length);
-            password_list.push(password.to_string());
-            loop {
-                let new_password = password.next();
-                if let Some(pass) = new_password {
-                    password_list.push(pass.to_string());
-                    password = pass;
-                }
-                else {
-                    break;
-                }
-            }
-            
-        }
-    }
-    else {
+        (args.smallest_numeric_length..=args.largest_numeric_length)
+            .into_iter()
+            .for_each(|length| {
+                println!("Generating length {} numeric passwords...", length);
+                password_list.append(
+                    &mut (0..usize::pow(10 as usize, length as u32))
+                        .into_par_iter()
+                        .map(|password| format!("{:0width$}", password, width = length))
+                        .collect(),
+                );
+            });
+    } else {
         println!("No cracking method specified. Did you mean to use numeric cracking?");
     }
-    
-    println!("Starting password cracking threads...");
-    let passwords_per_thread = ((password_list.len() as f64) / (args.threads as f64)).ceil() as usize;
-    let mut threads = Vec::new();
 
-    for i in 0..args.threads {
-        let mut start = passwords_per_thread*i;
-        let mut end = passwords_per_thread*(i+1);
-        if start > password_list.len() {
-            start = password_list.len()
+    println!("Starting password cracking...");
+    password_list.into_par_iter().for_each(|password| {
+        if try_password(&pdf_bytes, &password) {
+            println!("Found password: {}", &password.trim());
         }
-        if end > password_list.len() {
-            end = password_list.len()
-        }
-        let passwords: Vec<String> = password_list[start..end].into();
-        let pdf = args.pdf.clone();
-        let handle = thread::spawn(move || {
-            for password in passwords {
-                if try_password(&pdf, &password.trim()) {
-                    println!("Found password: {}", &password.trim());
-                    break;
-                }
-            }
-        });
-        threads.push(handle);
-    }
-    for handle in threads {
-        handle.join();
-    }
+    });
+
     println!("Done")
 }
