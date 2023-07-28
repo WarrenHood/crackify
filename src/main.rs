@@ -1,3 +1,4 @@
+use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use std::io::{BufRead, BufReader};
 
@@ -79,12 +80,19 @@ fn main() {
     } else {
         println!("No cracking method specified. Did you mean to use numeric cracking?");
     }
-
-    println!("Starting password cracking...");
+    let progress = ProgressBar::new(password_list.len() as u64)
+        .with_message("Cracking PDF password")
+        .with_style(
+            ProgressStyle::with_template(
+                "[{elapsed_precise}] {bar:45.green/yellow} {pos:>7}/{len:7} {msg} - ETA {eta_precise}",
+            )
+            .unwrap(),
+        );
     password_list.into_par_iter().for_each(|password| {
         if try_password(&pdf_bytes, &password) {
             println!("Found password: {}", &password);
         }
+        progress.inc(1);
     });
 
     println!("Done")
