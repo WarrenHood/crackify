@@ -94,6 +94,7 @@ fn main() {
         }
         progress.inc(1);
     });
+    progress.finish();
 
     println!("Done")
 }
