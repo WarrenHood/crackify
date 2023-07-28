@@ -30,7 +30,10 @@ struct Args {
 }
 
 fn try_password(pdf_contents: &[u8], password: &str) -> bool {
-    pdf::file::FileOptions::cached().password(password.as_bytes()).load(pdf_contents).is_ok()
+    pdf::file::FileOptions::cached()
+        .password(password.as_bytes())
+        .load(pdf_contents)
+        .is_ok()
 }
 
 fn main() {
@@ -57,7 +60,7 @@ fn main() {
             if len.unwrap() == 0 {
                 break;
             }
-            password_list.push(String::from(&password));
+            password_list.push(String::from(password.trim()));
             password.clear();
         }
     } else if args.is_numeric {
@@ -80,7 +83,7 @@ fn main() {
     println!("Starting password cracking...");
     password_list.into_par_iter().for_each(|password| {
         if try_password(&pdf_bytes, &password) {
-            println!("Found password: {}", &password.trim());
+            println!("Found password: {}", &password);
         }
     });
 
