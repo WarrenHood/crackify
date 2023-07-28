@@ -30,7 +30,7 @@ struct Args {
 }
 
 fn try_password(pdf_contents: &[u8], password: &str) -> bool {
-    pdf::file::File::from_data_password(pdf_contents, password.as_bytes()).is_ok()
+    pdf::file::FileOptions::cached().password(password.as_bytes()).load(pdf_contents).is_ok()
 }
 
 fn main() {

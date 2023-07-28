@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.3.19", features = ["derive"] }
-pdf = "0.7.2"
+pdf = "0.8.1"
 rayon = "1.7.0"
