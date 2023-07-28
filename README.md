@@ -1,8 +1,9 @@
 # crackify
 A simple PDF password cracker written in Rust.
 
-It uses multithreading. I haven't done this in the most efficient way though...
-It supports using a word list or it can generate numeric passwords given a min and max password length.
+Uses rayon for some fast, simple multithreaded PDF cracking and numeric password generation.
+
+Also has a progress bar with an ETA.
 
 Usage
 ```bash
@@ -19,8 +20,6 @@ Options:
           Minimum length of numeric password [default: 1]
   -l, --largest-numeric-length <LARGEST_NUMERIC_LENGTH>
           Maximum length of numeric password [default: 8]
-  -t, --threads <THREADS>
-          Number of threads to use [default: 16]
   -h, --help
           Print help
   -V, --version
